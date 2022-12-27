@@ -5,8 +5,10 @@ import copy
 
 class ActionError(ValueError):
     pass
+class TurnError(ValueError):
+    pass
 class PandemicGame:
-    def __init__(self, nplayers, difficulty):
+    def __init__(self, nplayers, difficulty, ncards_to_draw=2):
         self.nplayers = nplayers
         if self.nplayers == 2:
             self.starting_cards_per_hand = 4
@@ -24,6 +26,8 @@ class PandemicGame:
             self.nepidemics = 6
         else:
             raise ValueError("unknown difficulty")
+
+        self.ncards_to_draw = ncards_to_draw
         self.role_powers = [
             "contingency", "dispatcher", "medic", "operations", "quarantine", "researcher", "scientist"
         ]
@@ -238,6 +242,57 @@ class PandemicGame:
         self.player_discard.extend(list(matching_city_cards))
         self.player_hands[player] = player_hand - matching_city_cards
         self.cured_diseases[color] = False
+    
+    # raises TurnErrors, ActionErrors
+    def player_turn(self, player, actions):
+        if len(actions) != 4:
+            raise TurnError("must do 4 actions in a turn")
+        for action, args in actions:
+            # could raise ActionError
+            self.action_map[action](*args)
+        new_cards = list(self.draw_player_cards(self.ncards_to_draw))
+        # TODO: if multiple cards in a row are not epidemic, just do discard once instead of each time
+        for card in new_cards:
+            if card == "epidemic":
+                self.do_epidemic()
+            else:
+                self.player_hands[player].add(card)
+                hand = self.player_hands[player]
+                if len(hand) > 7:
+                    if self.interactive:
+                        discard = self.choose_cards_to_discard_interactive(player)
+                    else:
+                        discard = self.choose_cards_to_discard_policy(player)
+                    [self.player_hands[player].remove(c) for c in discard]
+                    self.play_discard.append(discard)
+        self.do_infect_step()
+    def do_epidemic(self):
+        # TODO
+        pass
+    def do_infect_step(self):
+        # TODO
+        pass
+        
+                
+    
+    def choose_cards_to_discard_interactive(self, player):
+        hand = self.player_hands[player]
+        if len(hand) <= 7:
+            raise ValueError("hand not too big")
+        print("Current hand: " + ", ".join(hand))
+        cards_to_discard = []
+        while len(cards_to_discard) != len(hand) - 7 and all(card in hand for card in cards_to_discard):
+            cards_to_discard = input("Enter cards to discard separated by comma").split(',')
+        return cards_to_discard
+    def choose_cards_to_discard_policy(self, player):
+        # TODO
+        pass
+
+
+
+
+
+
 
 def test_drive():
     game = PandemicGame(4, "easy")
