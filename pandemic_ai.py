@@ -7,8 +7,19 @@ class ActionError(ValueError):
     pass
 class TurnError(ValueError):
     pass
+class GameEnd(Exception):
+    def __init__(self, win, reason):
+        self.win = win
+        self.reason = reason
 class PandemicGame:
-    def __init__(self, nplayers, difficulty, ncards_to_draw=2):
+    def __init__(
+        self, 
+        nplayers, 
+        nepidemics=4,
+        ncards_to_draw=2, 
+        max_disease_cubes_per_color=24,
+        max_outbreaks=8,
+        infection_rates=[2, 2, 2, 3, 3, 4, 4]):
         self.nplayers = nplayers
         if self.nplayers == 2:
             self.starting_cards_per_hand = 4
@@ -18,15 +29,8 @@ class PandemicGame:
             self.starting_cards_per_hand = 2
         else:
             raise ValueError("only 2-4 players")
-        if difficulty == "easy":
-            self.nepidemics = 4
-        elif difficulty == "medium":
-            self.nepidemics = 5
-        elif difficulty == "hard":
-            self.nepidemics = 6
-        else:
-            raise ValueError("unknown difficulty")
 
+        self.nepidemics = nepidemics
         self.ncards_to_draw = ncards_to_draw
         self.role_powers = [
             "contingency", "dispatcher", "medic", "operations", "quarantine", "researcher", "scientist"
@@ -62,7 +66,9 @@ class PandemicGame:
         self.all_colors = set(self.city_colors.values())
         self.event_cards = ["build research station", "fly somewhere"]
         self.current_board = {}
-        self.total_disease_cubes_per_color = {color: 0 for color in self.all_colors}
+        self.total_disease_cubes_on_board_per_color = {color: 0 for color in self.all_colors}
+        self.max_disease_cubes_per_color = max_disease_cubes_per_color
+        self.disease_cubes_left = 
         self.infection_deck = list(self.city_graph.keys())
         self.shuffle_infection_deck()
         self.infection_discard = []
@@ -75,6 +81,20 @@ class PandemicGame:
         self.choose_roles()
         self.init_board(self.roles)
         self.init_player_hands(self.roles)
+        self.infection_rates = infection_rates
+        if len(infection_rates) != self.nepidemics - 1:
+            raise ValueError("number of infection rates must be one less than number of epidemics")
+        self.infection_rate_i = 0
+        self.outbreaks = 0
+        self.max_outbreaks = max_outbreaks
+
+    @property
+    def ndisease_colors(self):
+        return len(self.all_colors)
+    
+    @property
+    def infection_rate(self):
+        return self.infection_rates[self.infection_rate_i]
 
     def choose_roles(self):
         rng = default_rng()
@@ -107,6 +127,8 @@ class PandemicGame:
         return cards
 
     def draw_player_cards(self, n):
+        if n > self.len(self.player_deck):
+            raise GameEnd(False, "player deck limit")
         player_deck, cards = self.player_deck[:-n], self.player_deck[-n:]
         self.player_deck = player_deck
         return cards
@@ -127,16 +149,25 @@ class PandemicGame:
                 for _ in range(ndiseases):
                     self.add_disease_cube(city, self.city_colors[city])
 
+    def increment_outbreak(self):
+        self.outbreaks += 1
+        if self.outbreaks == self.max_outbreaks:
+            raise GameEnd(False, "outbreak limit")
+
     def add_disease_cube(self, city, color, prior_neighbors=None):
         if prior_neighbors is None:
             prior_neighbors = set()
         current_ndis_cubes = self.current_board[city].get(color, 0)
         if current_ndis_cubes < 3:
             self.current_board[city][color] = current_ndis_cubes + 1
-            self.total_disease_cubes_per_color[color] += 1
+            if self.total_disease_cubes_on_board_per_color[color] < self.max_disease_cubes_per_color:
+                self.total_disease_cubes_on_board_per_color[color] += 1
+            else:
+                raise GameEnd(False, "disease cube limit")
             return
         assert self.current_board[city][color] == 3
         self.current_board[city][color] = 3
+        self.increment_outbreak()
         prior_neighbors.add(city)
         for neighbor in self.city_graph[city]:
             if neighbor in prior_neighbors:
@@ -162,7 +193,7 @@ class PandemicGame:
         return color in self.cured_diseases or self.is_eradicated(color)
 
     def is_eradicated(self, color):
-        return self.total_disease_cubes_per_color[color] == 0
+        return self.total_disease_cubes_on_board_per_color[color] == 0
 
     ##### ACTIONS ###
     def drive(self, player, new_city):
@@ -205,7 +236,7 @@ class PandemicGame:
         if color in self.cured_diseases:
             n_to_treat = ndiseases
         self.current_board[city][color] = ndiseases - n_to_treat
-        self.total_disease_cubes_per_color[color] -= n_to_treat
+        self.total_disease_cubes_on_board_per_color[color] -= n_to_treat
 
     def treat_disease(self, player, color):
         city = self.current_player_locations[player]
@@ -242,6 +273,8 @@ class PandemicGame:
         self.player_discard.extend(list(matching_city_cards))
         self.player_hands[player] = player_hand - matching_city_cards
         self.cured_diseases[color] = False
+        if len(self.cured_diseases) == self.ndisease_colors:
+            raise GameEnd(True, None)
     
     # raises TurnErrors, ActionErrors
     def player_turn(self, player, actions):
@@ -266,13 +299,28 @@ class PandemicGame:
                     [self.player_hands[player].remove(c) for c in discard]
                     self.play_discard.append(discard)
         self.do_infect_step()
+
     def do_epidemic(self):
-        # TODO
-        pass
+        # increase
+        self.infection_rate_i += 1
+        # infect
+        card = self.infection_deck.pop()
+        self.infection_discard.append(card)
+        color = self.city_colors[card]
+        if not self.is_eradicated(color):
+            [self.add_disease_cube(card, color) for _ in range(3)]
+        # intensify
+        random.shuffle(self.infection_discard)
+        self.infection_deck.extend(self.infection_discard)
+        self.infection_discard = []
+
     def do_infect_step(self):
-        # TODO
-        pass
-        
+        cards = self.draw_infection_cards(self.infection_rate)
+        for card in cards:
+            color = self.city_colors[card]
+            if self.is_eradicated(color):
+                continue
+            self.add_disease_cube(card, color)
                 
     
     def choose_cards_to_discard_interactive(self, player):
@@ -284,15 +332,10 @@ class PandemicGame:
         while len(cards_to_discard) != len(hand) - 7 and all(card in hand for card in cards_to_discard):
             cards_to_discard = input("Enter cards to discard separated by comma").split(',')
         return cards_to_discard
+
     def choose_cards_to_discard_policy(self, player):
         # TODO
         pass
-
-
-
-
-
-
 
 def test_drive():
     game = PandemicGame(4, "easy")
@@ -303,6 +346,7 @@ def test_drive():
         game.drive(player, "lima")
     except ActionError:
         pass
+
 def test_direct_flight():
     game = PandemicGame(4, "easy")
     player = game.roles[0]
