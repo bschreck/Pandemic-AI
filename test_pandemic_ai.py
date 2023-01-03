@@ -1,5 +1,5 @@
 import pytest
-from pandemic_ai import PandemicGame, ActionError, GameEnd, TurnError
+from pandemic_game import PandemicGame, ActionError, GameEnd, TurnError
 import copy
 
 def test_drive():

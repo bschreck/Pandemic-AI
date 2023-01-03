@@ -192,6 +192,21 @@ class PandemicGame:
         self.max_outbreaks = max_outbreaks
         self.forecasted_infection_deck = None
         self.skip_next_infect_cities = False
+        if self.testing:
+            self.current_player_i = 0
+        else:
+            self.current_player_i = random.choice(range(len(self.roles)))
+
+    @property
+    def current_player(self):
+        return self.roles[self.current_player_i]
+
+    @property
+    def next_player(self):
+        return self.roles[(self.current_player_i + 1) % len(self.roles)]
+
+    def incr_current_player(self):
+        self.current_player_i = (self.current_player_i + 1) % len(self.roles)
 
     @property
     def ndisease_colors(self):
@@ -512,6 +527,8 @@ class PandemicGame:
 
     # raises TurnErrors, ActionErrors
     def player_turn(self, player, actions):
+        if player != self.current_player:
+            raise TurnError(f"player {player} is not current player {self.current_player}")
         if len(actions) != 4:
             raise TurnError("must do 4 actions in a turn")
         # TODO: make idempotent in case of exceptions on later actions
@@ -551,6 +568,8 @@ class PandemicGame:
         self.maybe_do_event()
         self.do_infect_step()
         self.maybe_do_event()
+        self.incr_current_player()
+
     def maybe_do_event(self):
         for player in self.roles:
             do_event = input("Do event? parameters separated by comma")
@@ -569,7 +588,7 @@ class PandemicGame:
 
     def resilient_population(self, city):
         card = None
-        while card is None
+        while card is None:
             card = input("Which infection discard to remove?")
             if card not in self.infection_discard:
                 print(f"{card} not in infection discard")
@@ -614,7 +633,7 @@ class PandemicGame:
         self.infection_discard.append(card)
         color = self.city_colors[card]
         if not self.is_eradicated(color):
-            [self.add_disease_cube(card, color) for _ in range(3), setup=False]
+            [self.add_disease_cube(card, color, setup=False) for _ in range(3)]
         self.maybe_do_event()
         # intensify
         random.shuffle(self.infection_discard)
