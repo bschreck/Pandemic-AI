@@ -319,6 +319,7 @@ class SingleAgentRolloutPandemicAI:
         assert n >= 1
         rounds = {}
         for i in range(n):
+            print(f"Round {i}")
             rounds[i] = []
             best_score = (None, None, None, math.inf)
             best_score_i = None
@@ -351,5 +352,13 @@ class SingleAgentRolloutPandemicAI:
 
 if __name__ == "__main__":
     ai = SingleAgentRolloutPandemicAI(dummy=False, do_events=False)
-    best_score_actions = ai.run_simulation_turn_n(2, ai.game)
+    begin = time.time()
+    # TODO: add randomness when picking actions with similar scores
+    best_score_actions = ai.run_simulation_turn_n(
+        4, ai.game, 
+        max_simulated_branching_factor=5, 
+        max_estimated_branching_factor=5,
+    )
+    end = time.time()
+    print(f"elapsed: {end - begin}")
     print(best_score_actions)

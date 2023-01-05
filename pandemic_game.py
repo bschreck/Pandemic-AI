@@ -452,7 +452,7 @@ class PandemicGame:
         self.current_player_locations[other_player] = new_city
         self.remove_cured_if_medic(other_player)
 
-    def dispatch_move(self, dispatcher, other_player, move_action, *move_action_args):
+    def dispatch_move(self, dispatcher, other_player, move_action, move_action_args):
         if self.role_powers[dispatcher] != "dispatcher":
             raise ActionError("player is not dispatcher")
         if move_action not in [
