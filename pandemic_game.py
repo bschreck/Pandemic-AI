@@ -21,10 +21,12 @@ class PandemicGame:
         max_disease_cubes_per_color=24,
         max_outbreaks=8,
         infection_rates=[2, 2, 2, 3, 3, 4, 4],
-        testing=False):
+        testing=False,
+        do_events=True):
 
         # this flag gets rid of all randomization
         self.testing = testing
+        self.do_events = do_events
         self.nplayers = nplayers
         if self.nplayers == 2:
             self.starting_cards_per_hand = 4
@@ -40,6 +42,39 @@ class PandemicGame:
         self.role_powers = [
             "contingency", "dispatcher", "medic", "operations", "quarantine", "researcher", "scientist"
         ]
+        self.role_power_actions = {
+            "contingency": {
+                self.contingency_plan,
+                ("event", "contingency_event"),
+
+            }, 
+            "dispatcher": {
+                ("direct_flight", "anyone"),
+                ("charter_flight", "anyone"),
+                "dispatch_flight",
+                "dispatch_move",
+
+            } ,
+            "medic": {
+                
+            }, 
+            "operations": {
+                "operations_move",
+                ("build_research_station", "any"),
+
+            }, 
+            "quarantine": {
+
+            },
+             "researcher": {
+                ("share_knowledge", "any"),
+
+             }, 
+             "scientist": {
+
+             }
+
+        }
         self.contingency_planner_event_card = None
         self.city_graph = {
             "atlanta": ["chicago", "washington", "miami"],
@@ -61,7 +96,7 @@ class PandemicGame:
             "istanbul": ["milan", "baghdad", "cairo", "algiers"],
             "cairo": ["algiers", "istanbul", "baghdad", "riyadh", "khartoum"],
             "moscow": ["istanbul", "st petersburg", "tehran"],
-            "baghdad": ["tehran", "instanbul", "cairo", "karachi", "riyadh"],
+            "baghdad": ["tehran", "istanbul", "cairo", "karachi", "riyadh"],
             "riyadh": ["cairo", "baghdad",  "karachi"],
             "tehran": ["baghdad", "delhi",  "karachi"],
             "karachi": ["tehran", "delhi",  "baghdad", "riyadh", "mumbai"],
@@ -75,7 +110,7 @@ class PandemicGame:
             "seoul": ["beijing", "shanghai", "tokyo"],
             "tokyo": ["seoul", "shanghai", "osaka", "san francisco"],
             "osaka": ["tokyo", "taipei"],
-            "bangkok": ["chennai", "jakarta", "ho chi ming", "hong kong", "kolkata"],
+            "bangkok": ["chennai", "jakarta", "ho chi minh", "hong kong", "kolkata"],
             "manila": ["san francisco", "taipei", "ho chi minh", "hong kong", "sydney"],
             "ho chi minh": ["manila", "bangkok", "jakarta", "hong kong"],
             "jakarta": ["ho chi minh", "bangkok", "chennai", "sydney"],
@@ -170,6 +205,7 @@ class PandemicGame:
             ]
         }
         self.current_board = {}
+        self.research_stations = set()
         self.total_disease_cubes_on_board_per_color = {color: 0 for color in self.all_colors}
         self.max_disease_cubes_per_color = max_disease_cubes_per_color
         self.infection_deck = list(self.city_graph.keys())
@@ -196,6 +232,7 @@ class PandemicGame:
             self.current_player_i = 0
         else:
             self.current_player_i = random.choice(range(len(self.roles)))
+        self.did_ops_move = False
 
     @property
     def current_player(self):
@@ -267,7 +304,7 @@ class PandemicGame:
 
     def init_board(self):
         self.current_board = {city: {} for city in self.city_colors}
-        self.current_board["atlanta"]["research_station"] = True
+        self.add_research_station("atlanta")
         self.current_player_locations = {
             player: "atlanta"
             for player in self.roles
@@ -330,6 +367,7 @@ class PandemicGame:
     
     def add_research_station(self, city):
         self.current_board[city]["research_station"] = True
+        self.research_stations.add(city)
 
     def cur_city_disease_cubes(self, city, color):
         return self.current_board[city].get(color, 0)
@@ -346,16 +384,25 @@ class PandemicGame:
     def is_eradicated(self, color):
         return self.total_disease_cubes_on_board_per_color[color] == 0
 
+    def remove_cured_if_medic(self, player):
+        if self.role_powers[player] == "medic":
+            for color in self.all_colors:
+                if (
+                    self.is_cured(color) 
+                    # player's location has >0 {color} dcubes on it
+                    and self.current_board[self.current_player_locations[player]].get(color, 0) > 0
+                ):
+                    self.treat_disease(player, color)
+
     ##### ACTIONS ###
-    def drive(self, player, new_city):
-        # TODO: remove cured diseases if player being moved is medic
+    def drive(self, player, new_city, **kwargs):
         cur_city = self.current_player_locations[player]
         if new_city not in self.city_graph[cur_city]:
             raise ActionError(f"Unable to move from {cur_city} to {new_city}")
         self.current_player_locations[player] = new_city
+        self.remove_cured_if_medic(player)
 
     def direct_flight(self, player, new_city, player_to_discard=None):
-        # TODO: remove cured diseases if player being moved is medic
         if new_city not in self.player_hands[player]:
             raise ActionError(f"Player does not have {new_city} in hand")
         if new_city not in self.city_colors:
@@ -368,9 +415,9 @@ class PandemicGame:
         elif self.role_powers[player_to_discard] != "dispatcher":
             raise ActionError("player trying to discard other player's cards who's not dispatcher")
         self.player_hands[player_to_discard].remove(new_city)
+        self.remove_cured_if_medic(player)
 
     def charter_flight(self, player, new_city, player_to_discard=None):
-        # TODO: remove cured diseases if player being moved is medic
         cur_city = self.current_player_locations[player]
         if cur_city not in self.player_hands[player]:
             raise ActionError(f"Player does not have {cur_city} in hand")
@@ -384,9 +431,9 @@ class PandemicGame:
         elif self.role_powers[player_to_discard] != "dispatcher":
             raise ActionError("player trying to discard other player's cards who's not dispatcher")
         self.player_hands[player_to_discard].remove(cur_city)
+        self.remove_cured_if_medic(player)
 
     def shuttle_flight(self, player, new_city):
-        # TODO: remove cured diseases if player being moved is medic
         cur_city = self.current_player_locations[player]
         if new_city not in self.city_colors:
             raise ActionError(f"{new_city} is not a city")
@@ -395,18 +442,18 @@ class PandemicGame:
         if not self.has_research_station(new_city):
             raise ActionError(f"{new_city} does not have a research station")
         self.current_player_locations[player] = new_city
+        self.remove_cured_if_medic(player)
 
     def dispatch_flight(self, dispatcher, other_player, new_city):
-        # TODO: remove cured diseases if player being moved is medic
-        if self.player_roles[dispatcher] != "dispatcher":
+        if self.role_powers[dispatcher] != "dispatcher":
             raise ActionError("player is not dispatcher")
         if new_city not in self.current_player_locations.values():
             raise ActionError(f"{new_city} does not contain pawn")
         self.current_player_locations[other_player] = new_city
+        self.remove_cured_if_medic(other_player)
 
-    def dispatch_move(self, dispatcher, other_player, move_action, *move_action_args, **move_action_kwargs):
-        # TODO: remove cured diseases if player being moved is medic
-        if self.player_roles[dispatcher] != "dispatcher":
+    def dispatch_move(self, dispatcher, other_player, move_action, *move_action_args):
+        if self.role_powers[dispatcher] != "dispatcher":
             raise ActionError("player is not dispatcher")
         if move_action not in [
             "drive",
@@ -415,7 +462,8 @@ class PandemicGame:
             "shuttle_flight"
         ]:
             raise ActionError("action must a move action")
-        self.action_map[move_action](other_player, *move_action_args, **move_action_kwargs)
+        self.action_map[move_action](other_player, *move_action_args, player_to_discard=dispatcher)
+        self.remove_cured_if_medic(other_player)
 
     def operations_move(self, ops_player, new_city, card_to_discard):
         if self.role_powers[ops_player] != "operations":
@@ -428,7 +476,7 @@ class PandemicGame:
             raise ActionError(f"{card_to_discard} not a city card")
 
         self.current_player_locations[ops_player] = new_city
-        self.player_hands[ops_player] -= card_to_discard
+        self.player_hands[ops_player].remove(card_to_discard)
 
     def treat_disease_internal(self, city, color, is_medic=False):
         ndiseases = self.current_board[city].get(color, 0)
@@ -455,7 +503,7 @@ class PandemicGame:
 
         self.add_research_station(city)
         if not player_is_ops:
-            self.player_hands[player] -= city
+            self.player_hands[player].remove(city)
 
     def share_knowledge(self, player, giving_player, receiving_player, city):
         assert player in [giving_player, receiving_player]
@@ -464,8 +512,10 @@ class PandemicGame:
         if g_player_loc != r_player_loc:
             raise ActionError(f"{giving_player} not in same city as {receiving_player}")
         g_player_hand = self.player_hands[giving_player]
-        if city not in g_player_hand and self.role_powers[giving_player] != "researcher":
+        if city not in g_player_hand:
             raise ActionError(f"{giving_player} does not have {city} in hand to give")
+        if city != g_player_loc and self.role_powers[giving_player] != "researcher":
+            raise ActionError(f"{city} does not equal cur location and not giving player is not researcher")
         self.player_hands[giving_player].remove(city)
         self.player_hands[receiving_player].add(city)
         if len(self.player_hands[receiving_player]) > 7:
@@ -507,7 +557,7 @@ class PandemicGame:
         if contingency_event:
             self.contingency_planner_event_card = None
         else:
-            self.player_hands[player] -= event
+            self.player_hands[player].remove(event)
     
     ### SPECIAL ACTIONS ###
     def contingency_plan(self, player, player_discard_event_index):
@@ -525,30 +575,43 @@ class PandemicGame:
         self.contingency_planner_event_card = event_card
     ######
 
+    def do_action(self, player, action):
+        args = tuple()
+        kwargs = {}
+        if len(action) == 2:
+            action, args = action
+        elif len(action) == 3:
+            action, args, kwargs = action
+        elif len(action) > 1:
+            raise TurnError("action must be length 1, 2, or 3")
+        elif isinstance(action, tuple):
+            action = action[0]
+        if action == "operations_move":
+            if self.did_ops_move:
+                raise TurnError("can only do one operations_move per turn")
+            self.did_ops_move = True
+        
+        # could raise ActionError
+        self.action_map[action](player, *args, **kwargs)
+
     # raises TurnErrors, ActionErrors
     def player_turn(self, player, actions):
+        self.player_turn_part_1(player, actions)
+        self.player_turn_part_2(player)
+
+    def player_turn_part_1(self, player, actions):
         if player != self.current_player:
             raise TurnError(f"player {player} is not current player {self.current_player}")
         if len(actions) != 4:
             raise TurnError("must do 4 actions in a turn")
         # TODO: make idempotent in case of exceptions on later actions
-        did_ops_move = False
+        self.did_ops_move = False
         for action in actions:
-            args = tuple()
-            kwargs = {}
-            if len(action) == 2:
-                action, args = action
-            elif len(action) == 3:
-                action, args, kwargs = action
-            elif len(action) > 1:
-                raise TurnError("action must be length 1, 2, or 3")
-            if action == "operations_move":
-                if did_ops_move:
-                    raise TurnError("can only do one operations_move per turn")
-                did_ops_move = True
-            
-            # could raise ActionError
-            self.action_map[action](player, *args, **kwargs)
+            self.do_action(player, action)
+
+    def player_turn_part_2(self, player):
+        if player != self.current_player:
+            raise TurnError(f"player {player} is not current player {self.current_player}")
         new_cards = list(self.draw_player_cards(self.ncards_to_draw))
         # TODO: if multiple cards in a row are not epidemic, just do discard once instead of each time
         for card in new_cards:
@@ -571,13 +634,19 @@ class PandemicGame:
         self.incr_current_player()
 
     def maybe_do_event(self):
+        if not self.do_events:
+            return
         for player in self.roles:
-            do_event = input("Do event? parameters separated by comma")
+            do_event = input(f"Player {player}: do event? parameters separated by comma")
+            if len(do_event) == 0:
+                continue
+
             if "," in do_event:
                 with_params = do_event.split(",")
                 do_event, with_params = with_params[0], with_params[1:]
             if do_event and do_event in self.player_hands[player] and do_event in self.event_map:
                 self.event_map[do_event](*with_params)
+
     def airlift(self, player_to_move, city):
         if city not in self.city_graph:
             raise ActionError("city not known")
