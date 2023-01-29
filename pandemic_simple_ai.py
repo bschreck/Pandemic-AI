@@ -3,6 +3,7 @@ from itertools import combinations_with_replacement, combinations, permutations
 import copy
 import math
 import time
+import random
 
 class DummyGame:
     current_player = 0
@@ -280,8 +281,13 @@ class SingleAgentRolloutPandemicAI:
         sim_game.do_action(cur_player, action)
         return self.estimate_board_state_score(sim_game), sim_game
 
-    def run_simulation_turn(self, game, max_simulated_branching_factor=5, max_estimated_branching_factor=10):
-        # TODO: figure out why we are generating treat disease actions when no diseases to treat in a city
+    def run_simulation_turn(
+        self, 
+        game, 
+        max_simulated_branching_factor=5, 
+        max_estimated_branching_factor=10,
+        random_action_prob=.01,
+    ):
         # TODO events
         cur_player = game.current_player
         rounds = {0: [(None, game, [a]) for a in self.gen_possible_actions(game, max_branching_factor=max_estimated_branching_factor)]}
@@ -290,16 +296,27 @@ class SingleAgentRolloutPandemicAI:
             for (_, old_game, action_path) in rounds[i]:
                 score_estimate, new_game = self.run_simulation_action(old_game, action_path[-1])
                 round_game_states.append((score_estimate, new_game, action_path))
-            round_game_states = sorted(round_game_states, key=lambda x: x[0])[:max_estimated_branching_factor]
+            # shuffle so that different actions of the same score get selected
+            random.shuffle(round_game_states)
+            round_game_states_all = sorted(round_game_states, key=lambda x: x[0])
+            round_game_states_pruned = round_game_states_all[:max_estimated_branching_factor]
+            # choose a random action with some probability to do exploration sometimes instead of only greedy selection
+            if random.random() < random_action_prob:
+                round_game_states_pruned[-1] = random.choice(round_game_states_all[max_estimated_branching_factor:])
             rounds[i+1] = []
-            for (score_estimate, new_game, action_path) in round_game_states:
+            for (score_estimate, new_game, action_path) in round_game_states_pruned:
                 for new_action in self.gen_possible_actions(new_game, max_branching_factor=max_estimated_branching_factor):
                     rounds[i+1].append((score_estimate, new_game, action_path + [new_action]))
 
         scores = []
         for _, game, actions in rounds[3]:
             sim_game = copy.deepcopy(game)
-            sim_game.player_turn_part_2(cur_player)
+                for step in sim_game.player_turn_part_2(cur_player):
+                    event_possilities = self.gen_event_actions(sim_game)
+                    # for each event, generate a score based on doing that event
+                    # sort/factor down with a branching factor like in actions
+                    # one event has 2 steps
+                    # need to know that this event has a step , and generate more branches after doing first step
             new_score = self.estimate_board_state_score(sim_game)
             # insert sort so that we can prune based on branching factor
             scores.append((sim_game, cur_player, actions, new_score))

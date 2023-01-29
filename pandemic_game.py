@@ -664,8 +664,16 @@ class PandemicGame:
                 card = None
         self.infection_discard = [c for c in self.infection_discard if c != card]
 
-    def forecast(self):
-        self.forecasted_infection_deck = self.infection_deck[-6:]
+    def forecast(self, interactive=True):
+        if interactive:
+            self.forecast_interactive()
+        else:
+            self.forecast_part_1()
+            yield
+            self.forecast_part_2()
+    def forecast_interactive(self):
+        self.forecast_part_1()
+
         def parse_new_order(new_order):
             new_order = new_order.split(",")
             if len(new_order) != 6:
@@ -688,7 +696,13 @@ class PandemicGame:
             parsed, reason = parse_new_order(new_order)
             if parsed is None:
                 print(f"incorrect input, reason = {reason}")
-        self.forecasted_infection_deck = [self.forecasted_infection_deck[i] for i in new_order]
+        self.forecast_order = new_order
+        self.forecast_part_2()
+
+    def forecast_part_1(self):
+        self.forecasted_infection_deck = self.infection_deck[-6:]
+    def forecast_part_2(self):
+        self.forecasted_infection_deck = [self.forecasted_infection_deck[i] for i in self.forecast_order]
         self.infection_deck = self.infection_deck[:-6] + self.forecasted_infection_deck
 
     def one_quiet_night(self):

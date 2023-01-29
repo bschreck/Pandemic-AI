@@ -12,8 +12,7 @@
                 "args": [
                     "build",
                     "--bin=pandemic_rust",
-                    "--package=pandemic_rust",
-                    "--manifest-path=${workspaceFolder}/pandemic_rust/Cargo.toml"
+                    "--package=pandemic_rust"
                 ],
                 "filter": {
                     "name": "pandemic_rust",
@@ -21,7 +20,7 @@
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}/pandemic_rust"
+            "cwd": "${workspaceFolder}"
         },
         {
             "type": "lldb",
@@ -40,15 +39,7 @@
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}/pandemic_rust"
-        }
-        {
-            "name": "Python: Current File",
-            "type": "python",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal",
-            "justMyCode": true
+            "cwd": "${workspaceFolder}"
         }
     ]
 }
