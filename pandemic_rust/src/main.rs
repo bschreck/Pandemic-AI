@@ -1,6 +1,8 @@
 use pandemic_rust::pandemic_game::{PandemicGame, PandemicGameState};
 use pandemic_rust::agent::{ActionError, Agent};
 
+include!("generated.rs");
+
 
 fn check_result(expect_err: bool, result: Result<bool, ActionError>) {
     match result {

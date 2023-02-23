@@ -4,6 +4,11 @@ use std::collections::HashMap;
 
 #[derive(Debug, EnumString, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum CityCard {
+    Test
+}
+
+#[derive(Debug, EnumString, PartialEq, Eq, Hash, Copy, Clone)]
+pub enum CityCard {
     Atlanta,
     Chicago,
     Washington,
