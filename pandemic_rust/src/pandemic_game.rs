@@ -4,7 +4,9 @@ use std::mem;
 use strum_macros::EnumIter;
 use strum::IntoEnumIterator;
 
+
 use crate::city_graph::{CityCard, city_graph};
+use crate::city_graph2::{CityCard2};
 use crate::agent::Agent;
 use crate::agent::AgentStruct;
 use crate::agent::ActionError;

@@ -1,11 +1,37 @@
 // build.rs
+use std::env;
+use std::path::Path;
 use std::fs::File;
 use std::io::Read;
 use serde_json::{Map, Value};
 use std::io::Write;
-// TODO: Upper camel case
-// second half of file
-// get it to output in gen/
+use regex::Regex;
+
+macro_rules! p {
+    ($($tokens: tt)*) => {
+        println!("cargo:warning={}", format!($($tokens)*))
+    }
+}
+
+fn camel_case(s: &str) -> String {
+    let re = Regex::new(r"(_|-)+").unwrap();
+    let s = re.replace_all(s, " ").to_string();
+    let mut words = s.split_whitespace().map(str::to_owned);
+    let first_word = words.next().unwrap_or_default();
+    let mut upper_camel_first_word = "".to_owned();
+    if first_word.len() > 0 {
+        upper_camel_first_word.push_str(&first_word[..1].to_uppercase());
+        upper_camel_first_word.push_str(&first_word[1..]);
+    }
+    words.fold(upper_camel_first_word, |mut acc, word| {
+        acc.push_str(&word[..1].to_uppercase());
+        acc.push_str(&word[1..]);
+        acc
+    })
+}
+// TODO: second half of file
+// later, not important:
+// get it to output in gen/ (requires nightly rust, --out-dir
 
 
 fn main() {
@@ -21,11 +47,9 @@ fn main() {
 
     let mut enum_str = String::from("pub enum CityCard2 {\n");
     for key in keys {
-        enum_str.push_str(&format!("    {},\n", key));
+        enum_str.push_str(&format!("    {},\n", camel_case(&key)));
     }
     enum_str.push('}');
-
-    println!("{}", enum_str);
 
     // Generate Rust code from the JSON data
     let rust_code = format!(
@@ -39,7 +63,11 @@ use std::collections::HashMap;
     );
 
     // Write the generated code to a file
-    let mut output_file = File::create("city_graph2.rs").unwrap();
+    let out_dir = env::var_os("OUT_DIR").unwrap();
+    //p!("{}", out_dir.clone().into_string().unwrap());
+    let dest_path = Path::new(&out_dir).join("city_graph2.rs");
+    //p!("{}", dest_path.clone().into_os_string().into_string().unwrap());
+    let mut output_file = File::create(&dest_path).unwrap();
     output_file.write_all(rust_code.as_bytes()).unwrap();
 }
 

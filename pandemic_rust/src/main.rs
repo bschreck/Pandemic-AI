@@ -1,7 +1,7 @@
 use pandemic_rust::pandemic_game::{PandemicGame, PandemicGameState};
 use pandemic_rust::agent::{ActionError, Agent};
 
-include!("generated.rs");
+//include!("generated.rs");
 
 
 fn check_result(expect_err: bool, result: Result<bool, ActionError>) {
@@ -32,7 +32,8 @@ fn main() {
         None,
         None,
         None,
-        None);
+        None,
+        Some(true));
     println!("infection_deck: {:#?}", state.infection_deck);
     println!("game: {game}");
     let mut state = game.initialize(state);

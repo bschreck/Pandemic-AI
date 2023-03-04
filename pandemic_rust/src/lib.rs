@@ -6,6 +6,6 @@ extern crate num;
 #[macro_use]
 extern crate num_derive;
 
-mod city_graph2 {
+pub mod city_graph2 {
     include!(concat!(env!("OUT_DIR"), "/city_graph2.rs"));
 }
