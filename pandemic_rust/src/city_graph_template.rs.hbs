@@ -1,0 +1,18 @@
+use strum_macros::EnumString;
+
+use std::collections::HashMap;
+
+#[derive(Debug, EnumString, PartialEq, Eq, Hash, Copy, Clone)]
+pub enum CityCard {
+    {{#each this}}
+    {{@key}},
+    {{/each}}
+}
+
+pub fn city_graph() -> HashMap<CityCard, Vec<CityCard>> {
+    HashMap::from([
+        {{#each this}}
+        (CityCard::{{@key}}, vec![{{#each this}}CityCard::{{this}}, {{/each}}]),
+        {{/each}}
+    ])
+}

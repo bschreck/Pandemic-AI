@@ -1,0 +1,279 @@
+{
+  "Algiers": [
+    "Madrid",
+    "Paris",
+    "Istanbul",
+    "Cairo"
+  ],
+  "Atlanta": [
+    "Chicago",
+    "Washington",
+    "Miami"
+  ],
+  "Baghdad": [
+    "Tehran",
+    "Istanbul",
+    "Cairo",
+    "Karachi",
+    "Riyadh"
+  ],
+  "Bangkok": [
+    "Chennai",
+    "Jakarta",
+    "HoChiMinh",
+    "HongKong",
+    "Kolkata"
+  ],
+  "Beijing": [
+    "Shanghai",
+    "Seoul"
+  ],
+  "Bogota": [
+    "Lima",
+    "BuenosAires",
+    "SaoPaulo",
+    "MexicoCity",
+    "Miami"
+  ],
+  "BuenosAires": [
+    "SaoPaulo",
+    "Bogota"
+  ],
+  "Cairo": [
+    "Algiers",
+    "Istanbul",
+    "Baghdad",
+    "Riyadh",
+    "Khartoum"
+  ],
+  "Chennai": [
+    "Jakarta",
+    "Bangkok",
+    "Mumbai",
+    "Delhi",
+    "Kolkata"
+  ],
+  "Chicago": [
+    "Montreal",
+    "Atlanta",
+    "SanFrancisco",
+    "LosAngeles",
+    "MexicoCity"
+  ],
+  "Delhi": [
+    "Mumbai",
+    "Tehran",
+    "Karachi",
+    "Kolkata",
+    "Chennai"
+  ],
+  "Essen": [
+    "London",
+    "Paris",
+    "StPetersburg",
+    "Milan"
+  ],
+  "HoChiMinh": [
+    "Manila",
+    "Bangkok",
+    "Jakarta",
+    "HongKong"
+  ],
+  "HongKong": [
+    "Kolkata",
+    "Bangkok",
+    "Shanghai",
+    "Taipei",
+    "HoChiMinh",
+    "Manila"
+  ],
+  "Istanbul": [
+    "Milan",
+    "Baghdad",
+    "Cairo",
+    "Algiers"
+  ],
+  "Jakarta": [
+    "HoChiMinh",
+    "Bangkok",
+    "Chennai",
+    "Sydney"
+  ],
+  "Johannesburg": [
+    "Khartoum",
+    "Kinshasa"
+  ],
+  "Karachi": [
+    "Tehran",
+    "Delhi",
+    "Baghdad",
+    "Riyadh",
+    "Mumbai"
+  ],
+  "Khartoum": [
+    "Cairo",
+    "Lagos",
+    "Kinshasa",
+    "Johannesburg"
+  ],
+  "Kinshasa": [
+    "Khartoum",
+    "Johannesburg",
+    "Lagos"
+  ],
+  "Kolkata": [
+    "Delhi",
+    "Chennai",
+    "Bangkok",
+    "HongKong"
+  ],
+  "Lagos": [
+    "Khartoum",
+    "Kinshasa",
+    "SaoPaulo"
+  ],
+  "Lima": [
+    "Santiago",
+    "Bogota",
+    "MexicoCity"
+  ],
+  "London": [
+    "NewYork",
+    "Madrid",
+    "Paris",
+    "Essen"
+  ],
+  "LosAngeles": [
+    "SanFrancisco",
+    "Chicago",
+    "MexicoCity",
+    "Sydney"
+  ],
+  "Madrid": [
+    "NewYork",
+    "London",
+    "Paris",
+    "SaoPaulo"
+  ],
+  "Manila": [
+    "SanFrancisco",
+    "Taipei",
+    "HoChiMinh",
+    "HongKong",
+    "Sydney"
+  ],
+  "MexicoCity": [
+    "LosAngeles",
+    "Chicago",
+    "Miami",
+    "Bogota",
+    "Lima"
+  ],
+  "Miami": [
+    "Atlanta",
+    "Washington",
+    "MexicoCity",
+    "Bogota"
+  ],
+  "Milan": [
+    "Istanbul",
+    "Paris",
+    "Essen"
+  ],
+  "Montreal": [
+    "Chicago",
+    "Washington",
+    "NewYork"
+  ],
+  "Moscow": [
+    "Istanbul",
+    "StPetersburg",
+    "Tehran"
+  ],
+  "Mumbai": [
+    "Karachi",
+    "Delhi",
+    "Chennai"
+  ],
+  "NewYork": [
+    "Washington",
+    "Montreal",
+    "London",
+    "Madrid"
+  ],
+  "Osaka": [
+    "Tokyo",
+    "Taipei"
+  ],
+  "Paris": [
+    "Madrid",
+    "London",
+    "Essen",
+    "Algiers",
+    "Milan"
+  ],
+  "Riyadh": [
+    "Cairo",
+    "Baghdad",
+    "Karachi"
+  ],
+  "SanFrancisco": [
+    "Chicago",
+    "LosAngeles",
+    "Tokyo",
+    "Manila"
+  ],
+  "Santiago": [
+    "Lima"
+  ],
+  "SaoPaulo": [
+    "Madrid",
+    "Lagos",
+    "Bogota",
+    "BuenosAires"
+  ],
+  "Seoul": [
+    "Beijing",
+    "Shanghai",
+    "Tokyo"
+  ],
+  "Shanghai": [
+    "Beijing",
+    "HongKong",
+    "Taipei",
+    "Tokyo",
+    "Seoul"
+  ],
+  "StPetersburg": [
+    "Essen",
+    "Istanbul",
+    "Moscow"
+  ],
+  "Sydney": [
+    "Jakarta",
+    "Manila",
+    "LosAngeles"
+  ],
+  "Taipei": [
+    "HongKong",
+    "Manila",
+    "Shanghai",
+    "Osaka"
+  ],
+  "Tehran": [
+    "Baghdad",
+    "Delhi",
+    "Karachi"
+  ],
+  "Tokyo": [
+    "Seoul",
+    "Shanghai",
+    "Osaka",
+    "SanFrancisco"
+  ],
+  "Washington": [
+    "Atlanta",
+    "Montreal",
+    "NewYork"
+  ]
+}
