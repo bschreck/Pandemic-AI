@@ -1,6 +1,5 @@
-use pandemic_rust::pandemic_game::{PandemicGame, PandemicGameState};
-use pandemic_rust::agent::{ActionError, Agent};
-
+use pandemic_rust::agent::{ActionError, AgentName};
+use pandemic_rust::pandemic_game::PandemicGame;
 
 fn check_result(expect_err: bool, result: Result<bool, ActionError>) {
     match result {
@@ -24,27 +23,21 @@ fn check_result(expect_err: bool, result: Result<bool, ActionError>) {
 }
 
 fn main() {
-    let (mut game, state) = PandemicGame::new(
-        4,
-        None,
-        None,
-        None,
-        None,
-        None,
-        Some(true));
+    let (mut game, mut state) = PandemicGame::new(4, None, None, None, None, None, Some(true));
     println!("infection_deck: {:#?}", state.infection_deck);
     println!("game: {game}");
-    let mut state = game.initialize(state);
+    game.initialize(&mut state);
     for i in 0..game.nplayers {
         println!(
             "agent {i} = {agent_type:?}",
-            i=i, agent_type=game.agents[i as usize].agent_type
+            i = i,
+            agent_type = game.agents[i as usize].agent_type
         );
 
         let mut expect_err = false;
         let result = match game.agents[i as usize].agent_type {
-            Agent::Contingency => game.do_action(i as usize, 0, &mut state),
-            Agent::Dispatcher => game.do_action(i as usize, 0, &mut state),
+            AgentName::Contingency => game.do_action(i as usize, 0, &mut state),
+            AgentName::Dispatcher => game.do_action(i as usize, 0, &mut state),
             _ => {
                 expect_err = true;
                 game.do_action(i as usize, 0, &mut state)

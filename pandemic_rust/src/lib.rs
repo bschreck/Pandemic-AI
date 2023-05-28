@@ -1,6 +1,7 @@
 #![feature(variant_count)]
-pub mod pandemic_game;
 pub mod agent;
+pub mod game_enums;
+pub mod pandemic_game;
 extern crate num;
 #[macro_use]
 extern crate num_derive;

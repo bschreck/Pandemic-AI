@@ -1,18 +1,27 @@
 use strum_macros::EnumString;
 
 use std::collections::HashMap;
+use crate::game_enums::Disease;
 
 #[derive(Debug, EnumString, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum CityCard {
-    {{#each this}}
+    {{#each this.city_graph}}
     {{@key}},
     {{/each}}
 }
 
 pub fn city_graph() -> HashMap<CityCard, Vec<CityCard>> {
     HashMap::from([
-        {{#each this}}
+        {{#each this.city_graph}}
         (CityCard::{{@key}}, vec![{{#each this}}CityCard::{{this}}, {{/each}}]),
+        {{/each}}
+    ])
+}
+
+pub fn city_diseases() -> HashMap<CityCard, Disease> {
+    HashMap::from([
+        {{#each this.city_disease}}
+        (CityCard::{{@key}}, Disease::{{this}}),
         {{/each}}
     ])
 }

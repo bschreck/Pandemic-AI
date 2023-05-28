@@ -1,38 +1,16 @@
-use std::fmt;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::mem;
-use strum_macros::EnumIter;
 use strum::IntoEnumIterator;
 
-
-use crate::city_graph::{CityCard, city_graph};
-use crate::agent::Agent;
-use crate::agent::AgentStruct;
 use crate::agent::ActionError;
-use rand::thread_rng;
+use crate::agent::Agent;
+use crate::agent::AgentName;
+use crate::city_graph::{city_diseases, city_graph, CityCard};
+use crate::game_enums::{Disease, EventCard, PlayerCard};
 use rand::seq::SliceRandom;
+use rand::{thread_rng, Rng};
 
-#[derive(Debug, EnumIter, PartialEq, Eq, Hash)]
-pub enum Disease {
-    Blue,
-    Red,
-    Black,
-    Yellow
-}
-
-#[derive(Debug, EnumIter, PartialEq, Eq, Hash, Copy, Clone)]
-pub enum EventCard {
-    GovernmentGrant,
-    ResilientPopulation,
-    Airlift,
-    Forecast,
-    OneQuietNight,
-}
-
-pub enum PlayerCard {
-    CityCard(CityCard),
-    EventCard(EventCard),
-}
 impl PlayerCard {
     pub fn from_city_card(card: CityCard) -> PlayerCard {
         PlayerCard::CityCard(card)
@@ -43,22 +21,24 @@ impl PlayerCard {
 }
 
 pub struct PandemicGameState {
-    pub board: HashMap<String, HashMap<Disease, u32>>,
+    pub cur_city_diseases: HashMap<CityCard, HashMap<Disease, u32>>,
+    pub player_locations: HashMap<AgentName, CityCard>,
     pub research_stations: HashSet<CityCard>,
     pub total_disease_cubes_on_board_per_color: HashMap<Disease, u32>,
     pub infection_deck: Vec<CityCard>,
     pub infection_discard: Vec<CityCard>,
     pub player_deck: Vec<PlayerCard>,
     pub player_discard: Vec<CityCard>,
-    pub player_hands: HashMap<Agent, Vec<CityCard>>,
+    pub player_hands: HashMap<AgentName, Vec<CityCard>>,
     pub cured_diseases: HashMap<Disease, bool>,
     pub infection_rate_i: u32,
     pub outbreaks: u32,
     pub forecasted_infection_deck: Vec<CityCard>,
     pub skip_next_infect_cities: bool,
-    pub players: Vec<Agent>,
+    pub players: Vec<AgentName>,
     pub current_player_i: u32,
     pub did_ops_move: bool,
+    rng: rand::rngs::ThreadRng,
 }
 
 impl<'a> fmt::Display for PandemicGameState {
@@ -66,8 +46,9 @@ impl<'a> fmt::Display for PandemicGameState {
         write!(
             f,
             "PandemicGameState: \n\
-               board: {board:#?}",
-            board=self.board)
+               board: {city_diseases:#?}",
+            city_diseases = self.cur_city_diseases
+        )
     }
 }
 
@@ -75,12 +56,13 @@ pub struct PandemicGame<'a> {
     pub nplayers: i32,
     pub nepidemics: i32,
     pub ncards_to_draw: i32,
-    pub max_disease_cubes_per_color: i32,
-    pub max_outbreaks: i32,
+    pub max_disease_cubes_per_color: u32,
+    pub max_outbreaks: u32,
     pub infection_rates: Vec<i32>,
     pub starting_cards_per_hand: i32,
-    pub agents: Vec<AgentStruct<'a>>,
+    pub agents: Vec<Agent<'a>>,
     pub city_graph: HashMap<CityCard, Vec<CityCard>>,
+    pub city_diseases: HashMap<CityCard, Disease>,
     pub events: Vec<EventCard>,
     pub testing: bool,
 }
@@ -90,8 +72,8 @@ impl<'a> PandemicGame<'a> {
         nplayers: i32,
         nepidemics: Option<i32>,
         ncards_to_draw: Option<i32>,
-        max_disease_cubes_per_color: Option<i32>,
-        max_outbreaks: Option<i32>,
+        max_disease_cubes_per_color: Option<u32>,
+        max_outbreaks: Option<u32>,
         infection_rates: Option<Vec<i32>>,
         testing: Option<bool>,
     ) -> (Self, PandemicGameState) {
@@ -99,15 +81,16 @@ impl<'a> PandemicGame<'a> {
             2 => 4,
             3 => 3,
             4 => 2,
-            other => panic!("Only 2-4 players supported, {other} players requests")
+            other => panic!("Only 2-4 players supported, {other} players requests"),
         };
 
         let mut cured_diseases: HashMap<Disease, bool> = HashMap::new();
         for d in Disease::iter() {
             cured_diseases.insert(d, false);
         }
-        let state = PandemicGameState{
-            board: HashMap::new(),
+        let state = PandemicGameState {
+            cur_city_diseases: HashMap::new(),
+            player_locations: HashMap::new(),
             research_stations: HashSet::new(),
             total_disease_cubes_on_board_per_color: HashMap::new(),
             infection_deck: city_graph().keys().map(|k| *k).collect(),
@@ -116,7 +99,7 @@ impl<'a> PandemicGame<'a> {
             player_discard: Vec::new(),
             player_hands: HashMap::new(), // initialize in ::initialize()
             // map of disease colors to boolean indicating whether the disease is also eradicated
-            cured_diseases: cured_diseases,
+            cured_diseases,
             infection_rate_i: 0,
             outbreaks: 0,
             forecasted_infection_deck: Vec::new(),
@@ -124,10 +107,11 @@ impl<'a> PandemicGame<'a> {
             players: Vec::new(), // initialize in ::initialize()
             current_player_i: 0,
             did_ops_move: false,
+            rng: thread_rng(),
         };
 
         let nepidemics = nepidemics.unwrap_or(4);
-        let infection_rates = infection_rates.unwrap_or(vec![2,2,2,3,3,4,4]);
+        let infection_rates = infection_rates.unwrap_or(vec![2, 2, 2, 3, 3, 4, 4]);
         if (infection_rates.len() as i32) < nepidemics + 1 {
             // TODO: return a Result from this fn instead of panicking
             panic!("Infection rates must be >= self.next_player + 1")
@@ -138,92 +122,236 @@ impl<'a> PandemicGame<'a> {
             events.push(e);
         }
 
-        (Self {
-            nplayers,
-            nepidemics: nepidemics,
-            ncards_to_draw: ncards_to_draw.unwrap_or(2),
-            max_disease_cubes_per_color: max_disease_cubes_per_color.unwrap_or(24),
-            max_outbreaks: max_outbreaks.unwrap_or(8),
-            infection_rates: infection_rates,
-            starting_cards_per_hand,
-            city_graph: city_graph(),
-            agents: vec![
-                AgentStruct::new(Agent::Contingency),
-                AgentStruct::new(Agent::Dispatcher),
-            ],
-            events: events,
-            testing: testing.unwrap_or(false),
-        }, state)
+        (
+            Self {
+                nplayers,
+                nepidemics,
+                ncards_to_draw: ncards_to_draw.unwrap_or(2),
+                max_disease_cubes_per_color: max_disease_cubes_per_color.unwrap_or(24),
+                max_outbreaks: max_outbreaks.unwrap_or(8),
+                infection_rates,
+                starting_cards_per_hand,
+                city_graph: city_graph(),
+                agents: vec![
+                    Agent::new(AgentName::Contingency),
+                    Agent::new(AgentName::Dispatcher),
+                ],
+                events,
+                testing: testing.unwrap_or(false),
+                city_diseases: city_diseases(),
+            },
+            state,
+        )
     }
     // TODO: how to call this function inside of ::new()
     // problem is needs to return Self as owned val, but initialize()
     // needs a mutable reference
-    pub fn initialize(&mut self, state: PandemicGameState) -> PandemicGameState{
-        self.select_roles();
+    // TODO: finish this implementationl
+    pub fn initialize(&mut self, state: &mut PandemicGameState) {
+        self.select_roles(state);
 
-        // TODO: implement these
-        let state = self.gen_player_deck(state);
-        /*
-        if not self.testing:
-            self.shuffle_infection_deck()
+        self.gen_player_deck(state);
+        if !self.testing {
+            self.shuffle_infection_deck(state)
+        }
 
-        self.total_disease_cubes_on_board_per_color = {color: 0 for color in self.all_colors}
+        for d in Disease::iter() {
+            state.total_disease_cubes_on_board_per_color.insert(d, 0);
+        }
 
-        self.init_board()
+        self.init_board(state);
 
-        if self.testing:
-            self.current_player_i = 0
-        else:
-            self.current_player_i = random.choice(range(len(self.roles)))
-        */
-        return state
+        if self.testing {
+            state.current_player_i = 0;
+        } else {
+            state.current_player_i = state.rng.gen_range(0..self.agents.len() as u32);
+        }
     }
-    pub fn gen_player_deck(&mut self, mut state: PandemicGameState) -> PandemicGameState {
-        state.player_deck = state.infection_deck.clone().into_iter().map(|c| PlayerCard::from_city_card(c)).collect();
-        for event in self.events.clone().into_iter().map(|e| PlayerCard::from_event_card(e)) {
+    pub fn gen_player_deck(&mut self, state: &mut PandemicGameState) {
+        state.player_deck = state
+            .infection_deck
+            .clone()
+            .into_iter()
+            .map(PlayerCard::from_city_card)
+            .collect();
+        for event in self
+            .events
+            .clone()
+            .into_iter()
+            .map(PlayerCard::from_event_card)
+        {
             state.player_deck.push(event);
         }
         if !self.testing {
-            state.player_deck.shuffle(&mut thread_rng());
+            state.player_deck.shuffle(&mut state.rng);
         }
 
-        /* TODO
-        if self.nepidemics > 0:
-            player_deck_split_sz = len(self.player_deck) // self.nepidemics
-            remainder = len(self.player_deck) % self.nepidemics
-            if self.testing:
-                randints = [0] * (self.nepidemics - 1)
-                last_randint = 0
-            else:
-                randints = np.random.randint(player_deck_split_sz, size=self.nepidemics-1)
-                last_randint = np.random.randint(player_deck_split_sz + remainder)
+        if self.nepidemics > 0 {
+            self.add_epidemic_card_to_player_deck(state);
+        }
+    }
 
-            epidemic_locations = [
-                player_deck_split_sz * i + randints[i]
-                for i in range(self.nepidemics-1)
-            ]
+    pub fn shuffle_infection_deck(&self, state: &mut PandemicGameState) {
+        state.infection_deck.shuffle(&mut state.rng);
+    }
 
-            epidemic_locations.append(
-                player_deck_split_sz * (self.nepidemics-1) + last_randint
-            )
-            for i, epidemic_loc in enumerate(epidemic_locations):
-                self.player_deck = self.player_deck[:epidemic_loc+i] + ["epidemic"] + self.player_deck[epidemic_loc+i:]
+    pub fn init_board(&self, state: &mut PandemicGameState) {
+        for city in self.city_graph.keys() {
+            state.cur_city_diseases.insert(*city, HashMap::new());
+        }
+        self.add_research_station(CityCard::Atlanta, state);
+        for agent in &self.agents {
+            state
+                .player_locations
+                .insert(agent.agent_type, CityCard::Atlanta);
+        }
+        let initial_infection_cards = self.draw_infection_cards(9, state);
+        /*
+        # first 3 cities get 3 disease cubes
+        # next 3 get 2
+        # next 3 get 1
         */
-        return state
+        for (i, ndiseases) in (3..0).enumerate() {
+            for city in &initial_infection_cards[i * 3..(i + 1) * 3] {
+                for _ in 0..ndiseases {
+                    self.add_disease_cube(
+                        *city,
+                        self.city_diseases[city],
+                        state,
+                        true,
+                        &mut HashSet::<CityCard>::new(),
+                    );
+                }
+            }
+        }
     }
 
-    pub fn select_roles(&mut self) {
-        let n_agent_types = mem::variant_count::<Agent>();
+    pub fn add_disease_cube(
+        &self,
+        city: CityCard,
+        disease: Disease,
+        state: &mut PandemicGameState,
+        setup: bool,
+        prior_neighbors: &mut HashSet<CityCard>,
+    ) {
+        // todo: medic/quarantine
+        let city_diseases = state
+            .cur_city_diseases
+            .entry(city)
+            .or_insert_with(HashMap::new);
+        let current_cubes = city_diseases.entry(disease).or_insert(0);
+
+        if *current_cubes < 3 {
+            *current_cubes += 1;
+            if *state
+                .total_disease_cubes_on_board_per_color
+                .get(&disease)
+                .expect("disease not found")
+                < self.max_disease_cubes_per_color
+            {
+                let cur_per_color_total = state.total_disease_cubes_on_board_per_color[&disease];
+                state
+                    .total_disease_cubes_on_board_per_color
+                    .insert(disease, cur_per_color_total + 1);
+            } else {
+                // TODO: implement GameEnd
+                panic!("GameEnd: disease cube limit");
+            }
+        } else {
+            assert_eq!(*current_cubes, 3);
+            self.increment_outbreak(state);
+            prior_neighbors.insert(city.clone());
+            for neighbor in self.city_graph[&city].clone() {
+                if prior_neighbors.contains(&neighbor) {
+                    continue;
+                }
+                self.add_disease_cube(neighbor, disease, state, setup, prior_neighbors);
+            }
+        }
+    }
+
+    pub fn increment_outbreak(&self, state: &mut PandemicGameState) {
+        state.outbreaks += 1;
+        if state.outbreaks == self.max_outbreaks {
+            panic!("GameEnd: outbreak limit");
+        }
+    }
+
+    pub fn add_research_station(&self, city: CityCard, state: &mut PandemicGameState) {
+        state.research_stations.insert(city);
+    }
+
+    pub fn draw_infection_cards(
+        &self,
+        ncards: usize,
+        state: &mut PandemicGameState,
+    ) -> Vec<CityCard> {
+        let mut cards: Vec<CityCard> = Vec::new();
+        for _ in 0..ncards {
+            if state.infection_deck.len() == 0 {
+                return cards;
+                // TODO: is this a possible state to get into?
+                //state.infection_deck = state.infection_discard.clone();
+                //state.infection_discard = Vec::new();
+                //state.infection_deck.shuffle(&mut state.rng);
+            }
+            let card = state.infection_deck.pop().unwrap();
+            cards.push(card);
+            state.infection_discard.push(card);
+        }
+        cards
+    }
+
+    pub fn add_epidemic_card_to_player_deck(&self, state: &mut PandemicGameState) {
+        // TODO: refactor/clean up
+
+        let player_deck_split_sz = state.player_deck.len() / self.nepidemics as usize;
+        let mut possible_indices: Vec<usize> = (0..player_deck_split_sz).collect();
+        possible_indices.shuffle(&mut state.rng);
+
+        let randints: Vec<usize> = if self.testing {
+            (0..self.nepidemics as usize - 1).collect()
+        } else {
+            possible_indices[0..self.nepidemics as usize - 1].to_vec()
+        };
+
+        let mut epidemic_indices: Vec<usize> = randints[..self.nepidemics as usize - 1]
+            .to_vec()
+            .iter()
+            .map(|i| -> usize { player_deck_split_sz * i + randints[*i] })
+            .collect();
+
+        let last_rand_int = randints[self.nepidemics as usize - 2];
+        let last_index_start = player_deck_split_sz * (self.nepidemics as usize - 1);
+        let last_index = last_index_start + last_rand_int;
+        epidemic_indices.push(last_index);
+
+        for (i, epidemic_loc) in epidemic_indices.iter().enumerate() {
+            state
+                .player_deck
+                .insert(epidemic_loc + i, PlayerCard::Epidemic);
+        }
+    }
+
+    pub fn select_roles(&mut self, state: &mut PandemicGameState) {
+        let n_agent_types = mem::variant_count::<AgentName>();
         let mut role_indices: Vec<usize> = (0..n_agent_types).collect();
-        role_indices.shuffle(&mut thread_rng());
-        let agents = (0..self.nplayers).map(|p| -> AgentStruct {
-            let agent_type = num::FromPrimitive::from_u32(role_indices[p as usize] as u32).unwrap();
-            AgentStruct::new(agent_type)
-        }).collect();
+        role_indices.shuffle(&mut state.rng);
+        let agents = (0..self.nplayers)
+            .map(|p| -> Agent {
+                let agent_type =
+                    num::FromPrimitive::from_u32(role_indices[p as usize] as u32).unwrap();
+                Agent::new(agent_type)
+            })
+            .collect();
         self.agents = agents;
-
     }
-    pub fn do_action(&self, agent_idx: usize, action_idx: usize, state: &mut PandemicGameState) -> Result<bool, ActionError>{
+    pub fn do_action(
+        &self,
+        agent_idx: usize,
+        action_idx: usize,
+        state: &mut PandemicGameState,
+    ) -> Result<bool, ActionError> {
         if agent_idx < self.agents.len() {
             let agent = &self.agents[agent_idx];
             if action_idx < agent.actions.len() {
@@ -231,7 +359,9 @@ impl<'a> PandemicGame<'a> {
                 action_fn(agent, self, state);
                 Result::Ok(true)
             } else {
-                Result::Err(ActionError::new("action_idx > agent.actions.len()".to_string()))
+                Result::Err(ActionError::new(
+                    "action_idx > agent.actions.len()".to_string(),
+                ))
             }
         } else {
             Result::Err(ActionError::new("agent_idx > agents.len()".to_string()))
@@ -245,7 +375,8 @@ impl<'a> fmt::Display for PandemicGame<'a> {
             f,
             "PandemicGame: \n\
                Number of Epidemics: {nepidemics}",
-            nepidemics=self.nepidemics)
+            nepidemics = self.nepidemics
+        )
     }
 }
 /* HIGH LEVEL ARCHITECTURE
