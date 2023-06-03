@@ -1,11 +1,38 @@
 use std::fmt;
 
-use crate::pandemic_game::PandemicGame;
+use crate::game_enums::GameEnd;
 use crate::pandemic_game::PandemicGameState;
 
 #[derive(Debug, Clone)]
+pub struct TurnError {
+    pub msg: String,
+}
+#[derive(Debug, Clone)]
 pub struct ActionError {
     pub msg: String,
+}
+// TODO: these can be done better. Ok?
+#[derive(Debug)]
+pub enum TurnEndState {
+    TErr(TurnError),
+    AErr(ActionError),
+    Ok(GameEnd),
+}
+#[derive(Debug)]
+pub enum ActionEndState {
+    Err(ActionError),
+    Ok(GameEnd),
+}
+impl TurnError {
+    pub fn new(msg: String) -> Self {
+        Self { msg }
+    }
+}
+
+impl fmt::Display for TurnError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.msg)
+    }
 }
 
 impl ActionError {
@@ -37,7 +64,7 @@ impl AgentName {
     }
 }
 
-pub type ActionFn<'a> = &'a dyn Fn(&Agent<'a>, &PandemicGame, &mut PandemicGameState);
+pub type ActionFn<'a> = &'a dyn Fn(&mut PandemicGameState, usize) -> Result<(), ActionEndState>;
 
 pub struct Agent<'a> {
     pub agent_type: AgentName,
@@ -48,15 +75,15 @@ impl<'a> Agent<'a> {
         let actions = match agent_type {
             AgentName::Contingency => {
                 let contingency_plan: ActionFn =
-                    &|this: &Agent, game: &PandemicGame, state: &mut PandemicGameState| {
-                        Self::contingency_plan(this, game, state)
+                    &|state: &mut PandemicGameState, agent_idx: usize| {
+                        state.contingency_plan(agent_idx)
                     };
                 vec![contingency_plan]
             }
             AgentName::Dispatcher => {
                 let dispatch_flight: ActionFn =
-                    &|this: &Agent, game: &PandemicGame, state: &mut PandemicGameState| {
-                        Self::dispatch_flight(this, game, state)
+                    &|state: &mut PandemicGameState, agent_idx: usize| {
+                        state.dispatch_flight(agent_idx)
                     };
                 vec![dispatch_flight]
             }
@@ -66,11 +93,5 @@ impl<'a> Agent<'a> {
             agent_type,
             actions,
         }
-    }
-    pub fn dispatch_flight(&self, _game: &PandemicGame, _state: &mut PandemicGameState) {
-        println!("Doing dispatch flight");
-    }
-    pub fn contingency_plan(&self, _game: &PandemicGame, _state: &mut PandemicGameState) {
-        println!("Doing contingency plan");
     }
 }

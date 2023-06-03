@@ -104,7 +104,9 @@ fn convert_snake_case_city_disease_to_upper_camel_case(
 
 #[derive(Deserialize, Serialize)]
 struct TemplateData {
+    first_variant: String,
     city_graph: HashMap<String, Vec<String>>,
+    city_graph_keys: Vec<String>,
     city_disease: HashMap<String, String>,
 }
 fn create_city_graph_mod(
@@ -124,7 +126,11 @@ fn create_city_graph_mod(
         .read_to_string(&mut city_graph_template_str)
         .unwrap();
 
+    let mut city_graph_keys: Vec<String> = city_graph.keys().map(|s| s.to_string()).collect();
+    let first_variant = city_graph_keys.pop().unwrap();
     let template_data = TemplateData {
+        first_variant,
+        city_graph_keys,
         city_graph,
         city_disease,
     };

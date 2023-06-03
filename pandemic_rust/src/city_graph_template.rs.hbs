@@ -3,10 +3,12 @@ use strum_macros::EnumString;
 use std::collections::HashMap;
 use crate::game_enums::Disease;
 
-#[derive(Debug, EnumString, PartialEq, Eq, Hash, Copy, Clone)]
+#[derive(Debug, Default, EnumString, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum CityCard {
-    {{#each this.city_graph}}
-    {{@key}},
+    #[default]
+    {{this.first_variant}},
+    {{#each this.city_graph_keys}}
+    {{@this}},
     {{/each}}
 }
 
