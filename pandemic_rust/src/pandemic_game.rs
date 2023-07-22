@@ -10,6 +10,13 @@ use crate::game_enums::{Disease, EventCard, GameEnd, PlayerCard};
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
 
+fn create_action_err_result(msg: String) -> Result<(), ActionEndState> {
+    Result::Err(ActionEndState::Err(ActionError::new(msg)))
+}
+fn create_action_err_result_win() -> Result<(), ActionEndState> {
+    Result::Err(ActionEndState::Ok(GameEnd::Win))
+}
+
 impl PlayerCard {
     pub fn from_city_card(card: CityCard) -> PlayerCard {
         PlayerCard::CityCard(card)
@@ -44,6 +51,7 @@ pub struct PandemicGameConfig {
     pub starting_cards_per_hand: i32,
     pub city_graph: HashMap<CityCard, Vec<CityCard>>,
     pub city_diseases: HashMap<CityCard, Disease>,
+    pub ndiseases: u32,
     pub events: Vec<EventCard>,
     pub testing: bool,
     pub interactive: bool,
@@ -110,6 +118,7 @@ impl PandemicGameConfig {
             events,
             testing: testing.unwrap_or(false),
             city_diseases: city_diseases(),
+            ndiseases: Disease::iter().count() as u32,
             interactive: interactive.unwrap_or(true),
             do_events: do_events.unwrap_or(true),
         }
@@ -129,6 +138,7 @@ pub struct PandemicGameState<'a> {
     pub infection_rate_i: usize,
     pub outbreaks: u32,
     pub forecasted_infection_deck: Vec<CityCard>,
+    pub forecast_order: Vec<usize>,
     pub skip_next_infect_cities: bool,
     pub players: Vec<AgentName>,
     pub current_player_i: u32,
@@ -166,6 +176,7 @@ impl<'a> PandemicGameState<'a> {
             infection_rate_i: 0,
             outbreaks: 0,
             forecasted_infection_deck: Vec::new(),
+            forecast_order: Vec::new(),
             skip_next_infect_cities: false,
             players: Vec::new(), // initialize in ::initialize()
             current_player_i: 0,
@@ -462,6 +473,37 @@ impl<'a> PandemicGameState<'a> {
         }
     }
 
+    pub fn do_event(&mut self, agent_idx: usize, event: EventCard) -> Result<(), ActionEndState> {
+        let agent_name = self.agents[agent_idx].agent_type;
+        if !self.player_hands[&agent_name].contains(&PlayerCard::EventCard(event))
+            && agent_name != AgentName::Contingency
+        {
+            return Result::Err(ActionEndState::Err(ActionError::new(
+                "player does not have event card".to_string(),
+            )));
+        }
+        let result = match event {
+            EventCard::Airlift => self.airlift(agent_idx),
+            EventCard::GovernmentGrant => self.government_grant(agent_idx),
+            EventCard::ResilientPopulation => self.resilient_population(agent_idx),
+            EventCard::Forecast => self.forecast(agent_idx),
+            EventCard::OneQuietNight => self.one_quiet_night(agent_idx),
+        };
+
+        match result {
+            Result::Err(e) => {
+                return Result::Err(ActionEndState::Err(e));
+            }
+            _ => {}
+        }
+        if agent_name == AgentName::Contingency {
+            self.contingency_planner_event_card = Option::None;
+        } else {
+            self.player_hands[&agent_name].remove(&event);
+        }
+        Result::Ok(())
+    }
+
     pub fn draw_player_cards(&mut self, n: u32) -> Result<Vec<PlayerCard>, GameEnd> {
         if n as usize > self.player_deck.len() {
             return Result::Err(GameEnd::PlayerDeckLimit);
@@ -645,36 +687,71 @@ impl<'a> PandemicGameState<'a> {
         Result::Ok(())
     }
 
-    pub fn do_event(&mut self, event: EventCard) -> Result<(), GameEnd> {
-        match event {
-            EventCard::Airlift => self.airlift(),
-            EventCard::GovernmentGrant => self.governemnt_grant(),
-            EventCard::ResilientPopulation => self.resilient_population(),
-            EventCard::Forecast => self.forecast(),
-            EventCard::OneQuietNight => self.one_quiet_night(),
+    // EVENTS
+    pub fn get_city_input(&self) -> CityCard {
+        // TODO:
+    }
+    pub fn get_card_idx_from_infection_discard_input(&self) -> usize {
+        // TODO
+    }
+    pub fn get_ordered_integers_input(&self, min: usize, max: usize) -> Vec<usize> {
+        // TODO
+    }
+    pub fn airlift(&mut self, agent_idx: usize) -> Result<(), GameEnd> {
+        let city = self.get_city_input();
+        let agent_name = self.agents[agent_idx].agent_type;
+        self.player_locations[&agent_name] = city;
+        Result::Ok(())
+    }
+    pub fn government_grant(&mut self, _agent_idx: usize) -> Result<(), GameEnd> {
+        let city = self.get_city_input();
+        self.add_research_station(city);
+        Result::Ok(())
+    }
+    pub fn resilient_population(&mut self, agent_idx: usize) -> Result<(), GameEnd> {
+        // get infection discard card from input
+        let card_idx = self.get_card_idx_from_infection_discard_input();
+        // TODO: is there a more efficient way to remove an element from a vector?
+        self.infection_discard.remove(card_idx);
+        Result::Ok(())
+    }
+    pub fn forecast(&mut self, agent_idx: usize) -> Result<(), GameEnd> {
+        if self.config.interactive {
+            self.forecast_interactive()
+        } else {
+            panic!("policy forecast not implemented");
         }
+        Result::Ok(())
+    }
+    pub fn forecast_interactive(&mut self) {
+        self.forecast_part_1();
+        self.forecast_order = self.get_ordered_integers_input(0, 6);
+        self.forecast_part_2();
     }
 
-    pub fn airlift(&mut self) -> Result<(), GameEnd> {
-        // get player_to_movve and city from input
-        Result::Ok(())
+    pub fn forecast_part_1(&mut self) {
+        self.forecasted_infection_deck = self.infection_deck[-6:];
     }
-    pub fn governemnt_grant(&mut self) -> Result<(), GameEnd> {
-        // get city from input
-        Result::Ok(())
+    pub fn forecast_part_2(&self) {
+        let forecast_order_len = self.forecast_order.len();
+        let mut new_forecasted_infection_deck: Vec<_> = Vec::with_capacity(forecast_order_len);
+        for &i in &self.forecast_order {
+            new_forecasted_infection_deck.push(self.forecasted_infection_deck[i]);
+        }
+        self.forecasted_infection_deck = new_forecasted_infection_deck;
+        
+        let infection_deck_len = self.infection_deck.len();
+        let new_infection_deck = [&self.infection_deck[0..infection_deck_len-6], &self.forecasted_infection_deck[..]].concat();
+        self.infection_deck = new_infection_deck;
+
     }
-    pub fn resilient_population(&mut self) -> Result<(), GameEnd> {
-        // get infection discard card from input
-        Result::Ok(())
-    }
-    pub fn forecast(&mut self) -> Result<(), GameEnd> {
-        // forecast_part1 and forecast_part2
-        Result::Ok(())
-    }
-    pub fn one_quiet_night(&mut self) -> Result<(), GameEnd> {
+    
+    pub fn one_quiet_night(&mut self, agent_idx: usize) -> Result<(), GameEnd> {
         self.skip_next_infect_cities = true;
         Result::Ok(())
     }
+    // END EVENTS
+
     pub fn do_infect_step(&mut self) -> Result<(), GameEnd> {
         if self.skip_next_infect_cities {
             self.skip_next_infect_cities = false;
@@ -691,7 +768,6 @@ impl<'a> PandemicGameState<'a> {
                 continue;
             }
             match self.add_disease_cube(card, *disease, false) {
-                Result::Ok(_) => {}
                 Result::Err(game_end) => {
                     return Result::Err(game_end);
                 }
@@ -759,13 +835,330 @@ impl<'a> PandemicGameState<'a> {
         cards_to_discard
     }
 
-    pub fn dispatch_flight(&mut self, _agent_idx: usize) -> Result<(), ActionEndState> {
-        println!("Doing dispatch flight");
+    // SPECIAL ACTIONS
+    pub fn dispatch_flight(&mut self, agent_idx: usize, other_agent_idx: usize, new_city: CityCard) -> Result<(), ActionEndState> {
+        let agent_name = self.agents[agent_idx].agent_type;
+        if agent_name != AgentName::Dispatcher {
+            return create_action_err_result("Only dispatcher can do dispatch flight".to_string());
+        }
+        if !self.player_hands[&agent_name].contains(&new_city) {
+            return create_action_err_result(format!(
+                "Player hand does not contain city card {:?}",
+                new_city
+            ));
+        }
+        let other_agent_name = self.agents[other_agent_idx].agent_type;
+        self.player_locations[&other_agent_name] = new_city;
+        self.remove_cured_if_medic(other_agent_idx);
         Result::Ok(())
     }
-    pub fn contingency_plan(&mut self, _agent_idx: usize) -> Result<(), ActionEndState> {
-        println!("Doing contingency plan");
+    // TODO: MoveActionFn is a subset of ActionFn for just drive, direct_flight, charter_flight, shuttle_flight
+    // TODO: how to pass args to actions
+    pub fn dispatch_move(&mut self, agent_idx: usize, other_agent_idx: usize, move_action: MoveActionFn, move_action_args: ActionFnArgs) -> Result<(), ActionEndState> {
+        let agent_name = self.agents[agent_idx].agent_type;
+        if agent_name != AgentName::Dispatcher {
+            return create_action_err_result("Only dispatcher can do dispatch flight".to_string());
+        }
+        match self.do_action(other_agent_idx, move_action, move_action_args) {
+            Result::Ok(_) => {}
+            Result::Err(game_end) => {
+                return Result::Err(game_end);
+            }
+        };
+        // TODO: all remove_cur_cured_if_medic can cause game to end
+        // and in general check for all places game can end
+        self.remove_cur_cured_if_medic(other_agent_idx);
         Result::Ok(())
+    }
+    pub fn operations_move(&mut self, agent_idx: usize, new_city: CityCard, card_to_discard: CityCard) -> Result<(), ActionEndState> {
+        let agent_name = self.agents[agent_idx].agent_type;
+        if agent_name != AgentName::Operations {
+            return create_action_err_result("Only operations agent can do operations move".to_string());
+        }
+        if !self.has_research_station(self.player_locations[&agent_name]) {
+            return create_action_err_result("Current city does not have research station".to_string());
+        }
+        if !self.player_hands[&agent_name].contains(card_to_discard) {
+            return create_action_err_result(format!(
+                "Player hand does not contain city card {:?}",
+                card_to_discard
+            ));
+        }
+        self.player_locations[&agent_name] = new_city;
+        self.player_hands[&agent_name].remove(card_to_discard);
+        Result::Ok(())
+    }
+    pub fn contingency_plan(&mut self, _agent_idx: usize, player_discard_event_index: usize) -> Result<(), ActionEndState> {
+        let agent_name = self.agents[agent_idx].agent_type;
+        if agent_name != AgentName::Contingency {
+            return create_action_err_result("Only contingency agent can do contingency_plan".to_string());
+        }
+        if player_discard_event_index >= self.player_discard.len() {
+            return create_action_err_result("player_discard_event_index must be within player discard".to_string());
+        }
+        match self.contingency_planner_event_card {
+            Some(_) => {
+                return create_action_err_result("contingency planner already has an event card to be used".to_string());
+            }
+        }
+        let event_card = self.player_discard[player_discard_event_index];
+        if !self.is_event_card(event_card) {
+            return create_action_err_result("player_discard_event_index must be within player discard".to_string());
+        }
+        // remove from discard, and remove from game entirely
+        self.player_discard.remove(player_discard_event_index);
+        self.contingency_planner_event_card = Some(event_card);
+        Result::Ok(())
+    }
+
+    pub fn get_n_disease_cubes_on_board(&self, agent_idx: usize, disease: &Disease) -> usize {
+        let agent_name = self.agents[agent_idx].agent_type;
+        let cur_city = self.player_locations[&agent_name];
+        self.cur_city_diseases[&cur_city][disease]
+    }
+
+    pub fn remove_cured_if_medic(&mut self, agent_idx: usize) {
+        let agent_name = self.agents[agent_idx].agent_type;
+        if agent_name == AgentName::Medic {
+            for disease in self.config.diseases.iter() {
+                if self.is_cured(*disease)
+                    && self.get_n_disease_cubes_on_board(agent_idx, disease) > 0
+                {
+                    self.treat_disease(agent_idx, disease)
+                }
+            }
+        }
+    }
+    // Normal actions
+    pub fn drive(&mut self, agent_idx: usize, new_city: CityCard) -> Result<(), ActionEndState> {
+        let agent_name = self.agents[agent_idx].agent_type;
+        let cur_city = self.player_locations[&agent_name];
+        if !self.config.city_graph[&cur_city].contains(&new_city) {
+            return create_action_err_result(
+                "Cannot drive to city not connected to current city".to_string(),
+            );
+        }
+        self.player_locations.insert(agent_name, new_city);
+        self.remove_cured_if_medic(agent_idx);
+        Result::Ok(())
+    }
+    pub fn shuttle_flight(
+        &mut self,
+        agent_idx: usize,
+        new_city: CityCard,
+    ) -> Result<(), ActionEndState> {
+        let agent_name = self.agents[agent_idx].agent_type;
+        let cur_city = self.player_locations[&agent_name];
+        if !self.has_research_station(&new_city) {
+            return create_action_err_result(
+                "Cannot shuttle flight to city without research station".to_string(),
+            );
+        }
+        if !self.has_research_station(&cur_city) {
+            return create_action_err_result(
+                "Cannot shuttle flight from city without research station".to_string(),
+            );
+        }
+        self.player_locations.insert(&agent_name, &new_city);
+        self.remove_cured_if_medic(agent_idx);
+        Result::Ok(())
+    }
+    pub fn charter_flight(
+        &mut self,
+        agent_idx: usize,
+        new_city: CityCard,
+        agent_to_discard_idx: usize,
+    ) -> Result<(), ActionEndState> {
+        let agent_name = self.agents[agent_idx].agent_type;
+        let cur_city = self.player_locations[&agent_name];
+        let cur_city_as_player_card = PlayerCard::CityCard(cur_city);
+        if !self.player_hands[&agent_name].contains(&cur_city_as_player_card) {
+            return create_action_err_result(
+                "Cannot charter flight without card for current city".to_string(),
+            );
+        }
+        self.player_locations.insert(&agent_name, &new_city);
+        self.player_discard.push(cur_city_as_player_card);
+        if agent_to_discard_idx > self.agents.len() {
+            return create_action_err_result(
+                "Agent trying to discard card for agent that doesn't exist".to_string(),
+            );
+        }
+        let agent_to_discard = self.agents[agent_to_discard_idx].agent_type;
+        if agent_to_discard_idx != agent_idx && agent_to_discard != AgentName::Dispatcher {
+            return create_action_err_result(
+                "Agent trying to discard other agent's cards who's not dispatcher".to_string(),
+            );
+        };
+        self.player_hands[&agent_to_discard].remove(&cur_city_as_player_card);
+        self.remove_cured_if_medic(agent_idx);
+        Result::Ok(())
+    }
+
+    pub fn direct_flight(
+        &mut self,
+        agent_idx: usize,
+        new_city: CityCard,
+    ) -> Result<(), ActionEndState> {
+        if !self.player_hands.contains(&new_city) {
+            return create_action_err_result(
+                "Cannot direct flight to city without card".to_string(),
+            );
+        }
+        self.player_locations.insert(&agent_name, &new_city);
+        self.player_discard.push(&new_city);
+        let agent_to_discard = self.agents[agent_to_discard_idx].agent_type;
+        if agent_to_discard_idx != agent_idx && agent_to_discard != AgentName::Dispatcher {
+            return create_action_err_result(
+                "Agent trying to discard other agent's cards who's not dispatcher".to_string(),
+            );
+        };
+        self.player_hands[&agent_to_discard].remove(&cur_city_as_player_card);
+
+        self.remove_cured_if_medic(agent_idx);
+        Result::Ok(())
+    }
+    pub fn treat_disease(
+        &mut self,
+        agent_idx: usize,
+        disease: Disease,
+    ) -> Result<(), ActionEndState> {
+        let agent_name = self.agents[agent_idx].agent_type;
+        let cur_city = self.player_locations[&agent_name];
+        self.treat_disease_internal(cur_city, disease, agent_name == AgentName::Medic)
+    }
+    pub fn treat_disease_internal(
+        &mut self,
+        city: CityCard,
+        disease: Disease,
+        is_medic: bool,
+    ) -> Result<(), ActionEndState> {
+        let ndiseases = self.get_n_disease_cubes_on_board(city, disease);
+        if ndiseases == 0 {
+            return create_action_err_result(
+                "Cannot treat disease in city with no disease cubes".to_string(),
+            );
+        }
+        let n_to_treat = 1;
+        if is_medic || self.is_cured(disease) {
+            n_to_treat = ndiseases;
+        }
+        self.cur_city_diseases[&city][disease] = ndiseases - n_to_treat;
+        self.total_cubes_on_board_per_disease[disease] -= n_to_treat;
+        Result::Ok(())
+    }
+    pub fn build_research_station(&mut self, _agent_idx: usize) -> Result<(), ActionEndState> {
+        let agent_name = self.agents[agent_idx].agent_type;
+        let cur_city = self.player_locations[&agent_name];
+        if self.has_research_station(cur_city) {
+            return create_action_err_result(
+                "Cannot build research station in city with research station".to_string(),
+            );
+        }
+        if !self.player_hands[agent_name].contains(&cur_city) && agent_name != AgentName::Operations
+        {
+            return create_action_err_result(format!("do not have matching {:?} card", cur_city));
+        }
+        self.add_research_station(cur_city);
+        if agent_name != AgentName::Operations {
+            self.player_hands[agent_name].remove(&cur_city);
+        }
+        Result::Ok(())
+    }
+    pub fn share_knowledge(
+        &mut self,
+        agent_idx: usize,
+        giving_agent_idx: usize,
+        receiving_agent_idx: usize,
+        city: CityCard,
+    ) -> Result<(), ActionEndState> {
+        if agent_idx != giving_agent_idx && agent_idx != receiving_agent_idx {
+            return create_action_err_result(
+                "Agent trying to share knowledge for agent that's not themself".to_string(),
+            );
+        }
+        let giving_agent_name = self.agents[giving_agent_idx].agent_type;
+        let receiving_agent_name = self.agents[receiving_agent_idx].agent_type;
+        let g_player_loc = self.player_locations[&giving_agent_name];
+        let r_player_loc = self.player_locations[&giving_agent_name];
+        if g_player_loc != r_player_loc {
+            return create_action_err_result("Agents not in same city".to_string());
+        }
+        let g_player_hand = self.player_hands[&giving_agent_name];
+        let city_as_player_card = PlayerCard::CityCard(city);
+        if !g_player_hand.contains(&city_as_player_card) {
+            return create_action_err_result(format!(
+                "giving agent does not have matching {:?} card",
+                city
+            ));
+        }
+        if city != g_player_loc && giving_agent_name != AgentName::Researcher {
+            return create_action_err_result(
+                "giving agent is not Researcher and not in correct city".to_string(),
+            );
+        }
+        self.player_hands[&giving_agent_name].remove(&city_as_player_card);
+        self.player_hands[&receiving_agent_name].insert(city_as_player_card);
+        if self.player_hands[&receiving_agent_name].len() > 7 {
+            let discard: Vec<PlayerCard>;
+            if self.config.interactive {
+                discard = self.choose_cards_to_discard_interactive(receiving_agent_name)
+            } else {
+                panic!("policy discard not implemented");
+                // discard = self.choose_cards_to_discard_policy(&agent);
+            }
+            for c in discard {
+                self.player_hands[&receiving_agent_name].remove(&c);
+            }
+            self.player_discard.extend(discard)
+        }
+        Result::Ok(())
+    }
+    pub fn discover_cure(
+        &mut self,
+        agent_idx: usize,
+        disease: &Disease,
+        matching_city_cards: Vec<CityCard>,
+    ) -> Result<(), ActionEndState> {
+        let agent_name = self.agents[agent_idx].agent_type;
+        if matching_city_cards.len() != 5
+            || (agent_name == AgentName::Scientist && matching_city_cards.len() == 4)
+        {
+            return create_action_err_result(
+                "must play exactly 5 city cards (or 4 for scientist)".to_string(),
+            );
+        }
+        if self.cured_diseases.contains(disease) {
+            return create_action_err_result("disease already cured".to_string());
+        }
+        let mut player_hand = self.player_hands[&agent_name].clone();
+        let matching_city_cards_set: HashSet<_> = matching_city_cards.into_iter()
+            .map(PlayerCard::CityCard)
+            .collect();
+        let intersection = player_hand.intersection(&matching_city_cards_set);
+        if (intersection.count()) < matching_city_cards.len() {
+            return create_action_err_result("do not have matching city cards".to_string());
+        }
+        let city_diseases: HashSet<Disease> = matching_city_cards
+            .into_iter()
+            .map(|c| self.config.city_diseases[&c])
+            .collect();
+        if city_diseases.len() != 1 {
+            return create_action_err_result(
+                "some of {matching_city_cards} do not have matching disease colors".to_string(),
+            );
+        }
+        self.player_discard.extend(matching_city_cards.into_iter().map(PlayerCard::CityCard));
+        for city_card in matching_city_cards {
+            player_hand.remove(&PlayerCard::CityCard(city_card));
+        }
+        self.player_hands[&agent_name] = player_hand;
+        self.cured_diseases.insert(*disease);
+        return if self.cured_diseases.len() == self.config.ndiseases as usize {
+            create_action_err_result_win()
+        } else {
+            Result::Ok(())
+        };
     }
 }
 

@@ -524,7 +524,7 @@ class PandemicGame:
             else:
                 discard = self.choose_cards_to_discard_policy(receiving_player)
             [self.player_hands[receiving_player].remove(c) for c in discard]
-            self.play_discard.extend(discard)
+            self.player_discard.extend(discard)
 
     def discover_cure(self, player, color, matching_city_cards: set):
         if (
@@ -627,7 +627,7 @@ class PandemicGame:
                     else:
                         discard = self.choose_cards_to_discard_policy(player)
                     [self.player_hands[player].remove(c) for c in discard]
-                    self.play_discard.extend(discard)
+                    self.player_discard.extend(discard)
         self.maybe_do_event()
         self.do_infect_step()
         self.maybe_do_event()

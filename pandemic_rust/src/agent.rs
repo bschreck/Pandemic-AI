@@ -85,7 +85,36 @@ impl<'a> Agent<'a> {
                     &|state: &mut PandemicGameState, agent_idx: usize| {
                         state.dispatch_flight(agent_idx)
                     };
-                vec![dispatch_flight]
+                let charter_flight: ActionFn =
+                    &|state: &mut PandemicGameState, agent_idx: usize| {
+                        state.charter_flight(agent_idx)
+                    };
+                let direct_flight: ActionFn = &|state: &mut PandemicGameState, agent_idx: usize| {
+                    state.direct_flight(agent_idx)
+                };
+                let dispatch_move: ActionFn = &|state: &mut PandemicGameState, agent_idx: usize| {
+                    state.dispatch_move(agent_idx)
+                };
+                vec![
+                    dispatch_flight,
+                    charter_flight,
+                    direct_flight,
+                    dispatch_move,
+                ]
+            }
+            AgentName::Operations => {
+                let operations_move: ActionFn =
+                    &|state: &mut PandemicGameState, agent_idx: usize| {
+                        state.operations_move(agent_idx)
+                    };
+                vec![operations_move]
+            }
+            AgentName::Researcher => {
+                let share_knowledge: ActionFn =
+                    &|state: &mut PandemicGameState, agent_idx: usize| {
+                        state.share_knowledge(agent_idx)
+                    };
+                vec![share_knowledge]
             }
             _ => vec![],
         };

@@ -1,0 +1,83 @@
+Phrase Alterations:
+Original: Lose influence
+New: Lose power
+Image caption: A cybernetic cheetah with a glowing neon mane, dimming in a futuristic cityscape.
+
+Original: Launch a Coup
+New: Initiate Time Warping
+Image caption: A mechanically-enhanced gorilla activating a time vortex device.
+
+Original: the Treasury
+New: the Quantum Bank
+
+Original: General Action
+New: Common Protocol
+
+Original: Character Action
+New: Specialist Protocol
+
+Original: Collect Income
+New: Gather Quantum Energy
+Image caption: A robotically-enhanced mouse gathering orbs of glowing quantum energy.
+
+Original: Take Foreign Aid
+New: Extract Temporal Assistance
+Image caption: A neon-plated turtle accessing a floating cybernetic data terminal.
+
+Original: Tax
+New: Quantum Extraction
+Image caption: A cybernetic eagle soaring above a futuristic city, gathering floating energy orbs.
+
+Original: Assassinate
+New: Delete from Timeline
+Image caption: A futuristic, augmented panther phasing an enemy out of existence.
+
+Original: Launch an Assassination
+New: Initiate Deletion
+
+Original: Steal from
+New: Siphon Energy from
+Image caption: A high-tech weasel stealthily siphoning energy from another cybernetic creature.
+
+Original: Exchange cards
+New: Time Swap protocols
+Image caption: A tech-enhanced owl manipulating a holographic interface, altering the timeline.
+
+Original: Counteraction
+New: Firewall Protocol
+
+Original: Block
+New: Deflect
+
+Original: Challenge an Action
+New: Contest Protocol
+
+Original: Duke
+New: Cybernetic Lion
+Image caption: A majestic cybernetic lion standing atop a futuristic cityscape.
+
+Original: Contessa
+New: Neon Peacock
+Image caption: A shining neon peacock displaying its luminescent feathers in a cybernetic forest.
+
+Original: Ambassador
+New: Quantum Fox
+Image caption: A quantum fox disappearing into a glowing rift in time.
+
+Original: Captain
+New: Mech Shark
+Image caption: A mechanically-enhanced shark patrolling underwater in a futuristic city.
+
+Story
+
+In the not too distant future, sentient animals equipped with advanced cybernetic enhancements, fueled by quantum energy, battle for supremacy in a world driven by time technology.
+
+Giant corporations, now run by the most powerful of these cybernetic animals, exploit quantum energy reserves to manipulate time and reality, causing widespread inequality. Only a few cybernetic animals live in the glittering neon metropolises, while the rest are relegated to the ruins of the old world.
+
+Out of the desperate times emerges the Quantum Alliance, a group committed to toppling these powerful corporations. The Quantum Alliance's efforts have created ripples in time, causing confusion and disarray amongst the ruling class, pushing their reality to the brink of a time paradox.
+
+For you, a highly augmented creature in a position of power, this chaotic timeline is an opportunity to harness quantum energy, trick your adversaries and bluff your way into becoming the singular ruler of time.
+
+Your goal is to sap your rivals of their power, push them out of this timeline, and become the last survivor in this time-altering war. Only one can control the quantum stream and dictate the flow of time.
+
+Components remain the same, but the character cards' names and artwork are replaced with the new ones generated in the phrase alterations. The gameplay instructions then follow the original Coup instructions, with the phrase alterations incorporated into the gameplay.
